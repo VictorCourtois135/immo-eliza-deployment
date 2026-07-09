@@ -425,7 +425,7 @@ if submitted:
             "epc_score": epc_score,
         }
 
-        with st.spinner("Estimating price..."):
+        with st.spinner(text="Estimating price...", show_time=True):
             try:
                 result = get_predict(data_dict)
                 pred = result.get("prediction")
