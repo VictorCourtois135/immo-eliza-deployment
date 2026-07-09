@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from urllib.parse import quote
 
 # --- Load environment variables ---
+
 load_dotenv()
 
 URL_ML = os.getenv("URL_ML")
@@ -22,7 +23,6 @@ PROPERTY_TYPES = ['House', 'Apartment']
 SUBTYPE_HOUSE = ['residence', 'mixed-building', 'bungalow', 'villa', 'cottage', 'chalet', 'master-house', 'mansion']
 SUBTYPE_APARTMENT = ['apartment', 'duplex', 'penthouse', 'studio', 'ground-floor', 'triplex', 'loft']
 
-REGIONS = ['Wallonia', 'Brussels', 'Flanders']
 PROVINCES = {
     'Wallonia': ['Liège', 'Hainaut', 'Luxembourg', 'Namur', 'Walloon Brabant'],
     'Flanders': ['Limburg', 'East Flanders', 'Antwerp', 'West Flanders', 'Flemish Brabant'],
@@ -111,7 +111,7 @@ def geocode_address(address: str):
 def get_predict(data: dict):
     resp = requests.post(f"{URL_ML}/predict", json=data)
     resp.raise_for_status()
-    return resp.json()["prediction"]
+    return resp.json()  # {"prediction": ..., "low": ..., "high": ..., "status_code": ...}
 
 
 # =========================
@@ -131,11 +131,17 @@ html, body, [class*="css"] {
     background-color: #FAF6EE;
 }
 
+/* Top header bar (☰ menu / Deploy button) — transparent so it shows
+   whatever is behind it, staying in sync with .stApp automatically */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+}
+
 h1, h2, h3 {
     font-family: 'Fraunces', serif;
     color: #17293D;
 }
-heckbox
+
 p, label, span, div {
     color: #3C4A57;
 }
@@ -199,73 +205,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     background-color: #FFFFFF;
 }
 
-/* Force readable input fields regardless of light/dark browser theme */
-input, textarea {
-    background-color: #FFFFFF !important;
-    color: #17293D !important;
-    caret-color: #17293D !important;
-}
-input::placeholder, textarea::placeholder {
-    color: #9AA5AE !important;
-}
-
-/* Selectbox (closed state) */
-div[data-baseweb="select"] > div {
-    background-color: #FFFFFF !important;
-    color: #17293D !important;
-    border-color: #D9CFB8 !important;
-}
-div[data-baseweb="select"] span {
-    color: #17293D !important;
-}
-
-/* Selectbox dropdown (open list) */
-div[data-baseweb="popover"] {
-    background-color: #FFFFFF !important;
-}
-ul[role="listbox"] {
-    background-color: #FFFFFF !important;
-}
-li[role="option"] {
-    background-color: #FFFFFF !important;
-    color: #17293D !important;
-}
-li[role="option"]:hover {
-    background-color: #F1ECDF !important;
-}
-
-/* Checkbox label */
-[data-testid="stCheckbox"] label p {
-    color: #3C4A57 !important;
-}
-
-/* Checkbox box itself. Streamlit renders this as an auto-generated atomic
-   class (e.g. "st-df st-b4 ..."), which changes between versions — so we
-   target it structurally via the stable data-testid wrapper instead. */
-[data-testid="stCheckbox"] span {
-    background-color: #FFFFFF !important;
-    border: 1px solid #D9CFB8 !important;
-    border-radius: 3px !important;
-}
-
-/* Checkmark: Streamlit bakes the icon into a background-image data-URI on
-   this span (it's empty in the DOM, no nested <svg>), so fill/stroke have no
-   effect. We replace the background-image itself with our own red checkmark
-   when the underlying (hidden) input is checked. */
-[data-testid="stCheckbox"]:has(input:checked) span {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='%23C0392B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M3 8.5l3.2 3.2L13 4.5'/></svg>") !important;
-    background-repeat: no-repeat !important;
-    background-position: center !important;
-    background-size: 65% 65% !important;
-    background-color: #FFFFFF !important;
-}
-
-/* Number input +/- buttons */
-button[data-testid="stNumberInputStepUp"], button[data-testid="stNumberInputStepDown"] {
-    background-color: #FFFFFF !important;
-    color: #17293D !important;
-}
-
 /* Buttons */
 .stButton>button {
     background-color: #3F6B63;
@@ -323,6 +262,18 @@ button[data-testid="stNumberInputStepUp"], button[data-testid="stNumberInputStep
     font-size: 2.6rem;
     font-weight: 600;
     color: #17293D;
+}
+.stamp-range {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: #3F6B63;
+    margin-top: 0.5rem;
+}
+.stamp-range-caption {
+    font-size: 0.75rem;
+    color: #8A8370;
+    margin-top: 0.2rem;
 }
 
 /* EPC badge */
@@ -476,11 +427,24 @@ if submitted:
 
         with st.spinner("Estimating price..."):
             try:
-                pred = get_predict(data_dict)
+                result = get_predict(data_dict)
+                pred = result.get("prediction")
+                low = result.get("low")
+                high = result.get("high")
+
+                if low is not None and high is not None:
+                    range_html = f"""
+                    <div class="stamp-range">€ {low:,.0f} — € {high:,.0f}</div>
+                    <div class="stamp-range-caption">Typical price range (± average model error)</div>
+                    """.replace(",", " ")
+                else:
+                    range_html = ""
+
                 st.markdown(f"""
                 <div class="stamp">
                     <div class="stamp-label">Fig. 04 — Estimated market value</div>
                     <div class="stamp-value">€ {pred:,.0f}</div>
+                    {range_html}
                 </div>
                 """.replace(",", " "), unsafe_allow_html=True)
             except requests.exceptions.RequestException as e:
